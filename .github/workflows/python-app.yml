@@ -1,0 +1,115 @@
+name: Build and Release Git Notebook
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  windows-build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8
+
+      - name: Install pyinstaller
+        run: pip install pyinstaller
+
+      - name: Build executable
+        run: pyinstaller --onefile --name git_notebook main.py
+
+      - name: Upload Windows executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: git_notebook.exe
+          path: dist/git_notebook.exe
+
+  linux-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8
+
+      - name: Install pyinstaller
+        run: pip install pyinstaller
+
+      - name: Build Linux Executable
+        run: |
+          pyinstaller --onefile --windowed --name git_notebook main.py
+
+      - name: Upload linux executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: git_notebook
+          path: dist/git_notebook
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [linux-build, windows-build]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.git_notebook_token }}
+        with:
+          tag_name: ${{ github.ref  }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Download Linux executable
+        uses: actions/download-artifact@v4
+        with:
+          name: git_notebook
+
+      - name: Download Windows executable
+        uses: actions/download-artifact@v4
+        with:
+          name: git_notebook.exe
+
+      - name: Upload Linux executable to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.git_notebook_token }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./git_notebook
+          asset_name: git_notebook
+          asset_content_type: application/octet-stream
+
+      - name: Upload Windows executable to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.git_notebook_token }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./git_notebook.exe
+          asset_name: git_notebook.exe
+          asset_content_type: application/octet-stream
